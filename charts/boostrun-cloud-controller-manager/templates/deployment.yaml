@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bccm.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bccm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "bccm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bccm.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if or .Values.apiKey.value .Values.podAnnotations }}
+      annotations:
+        {{- if .Values.apiKey.value }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "bccm.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: {{ include "bccm.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --cloud-provider=boostrun
+            - --controllers=service-lb-controller
+            - --cluster-name={{ required "clusterName is required" .Values.clusterName }}
+            - --leader-elect=true
+            - --leader-elect-resource-name={{ include "bccm.fullname" . }}
+            - --leader-elect-resource-namespace={{ .Release.Namespace }}
+            - --authentication-skip-lookup=true
+            - --secure-port=10258
+            - --v={{ .Values.logLevel }}
+            {{- range .Values.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            - name: BOOSTRUN_API_URL
+              value: {{ .Values.apiURL | quote }}
+            - name: BOOSTRUN_API_KEY_FILE
+              value: /etc/boostrun/api-key
+            {{- with .Values.networkClusterID }}
+            - name: BOOSTRUN_NETWORK_CLUSTER_ID
+              value: {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: https
+              containerPort: 10258
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: api-key
+              mountPath: /etc/boostrun
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: api-key
+          secret:
+            secretName: {{ include "bccm.secretName" . }}
+            items:
+              - key: {{ .Values.apiKey.secretKey }}
+                path: api-key
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        {{- if .Values.affinity }}
+        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "bccm.selectorLabels" . | nindent 20 }}
+        {{- end }}

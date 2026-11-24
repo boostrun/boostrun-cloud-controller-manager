@@ -1,0 +1,86 @@
+# What the Kubernetes service controller uses: it watches Services and Nodes, patches Service
+# status and finalizers, and records events.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "bccm.fullname" . }}
+  labels:
+    {{- include "bccm.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch, patch]
+  - apiGroups: [""]
+    resources: [services/status]
+    verbs: [patch]
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "bccm.fullname" . }}
+  labels:
+    {{- include "bccm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "bccm.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "bccm.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+# Lets the health and metrics endpoints authenticate callers with TokenReview and
+# SubjectAccessReview.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "bccm.fullname" . }}-auth-delegator
+  labels:
+    {{- include "bccm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "bccm.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+# Leader election, in the release namespace only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "bccm.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bccm.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [create]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    resourceNames: [{{ include "bccm.fullname" . }}]
+    verbs: [get, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "bccm.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bccm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "bccm.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "bccm.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

@@ -1,0 +1,20 @@
+The BoostRun cloud controller manager is installed in {{ .Release.Namespace }}.
+
+{{- if not .Values.apiKey.value }}
+
+It reads the API key from Secret {{ .Values.apiKey.existingSecret }}, key {{ .Values.apiKey.secretKey }}.
+If you have not created it yet:
+
+  kubectl -n {{ .Release.Namespace }} create secret generic {{ .Values.apiKey.existingSecret }} \
+    --from-literal={{ .Values.apiKey.secretKey }}=<your API key>
+{{- end }}
+
+Check that it is running:
+
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Then create a Service of type LoadBalancer. Its EXTERNAL-IP appears once the platform has
+provisioned the load balancer, usually within a minute. If it stays <pending>, the reason is
+in its events:
+
+  kubectl describe service <name>

@@ -1,0 +1,6 @@
+.git
+.github
+charts
+test
+*.md
+/boostrun-cloud-controller-manager

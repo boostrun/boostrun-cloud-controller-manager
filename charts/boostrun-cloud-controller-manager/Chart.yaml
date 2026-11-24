@@ -1,0 +1,11 @@
+apiVersion: v2
+name: boostrun-cloud-controller-manager
+description: Serves Kubernetes Services of type LoadBalancer with BoostRun load balancers.
+type: application
+# version and appVersion are set by the release workflow; these are the development values.
+version: 0.0.0-dev
+appVersion: dev
+home: https://github.com/boostrun/boostrun-cloud-controller-manager
+sources:
+  - https://github.com/boostrun/boostrun-cloud-controller-manager
+keywords: [boostrun, load-balancer, cloud-controller-manager, ccm]

@@ -1,0 +1,74 @@
+# -- The BoostRun platform API key, read from a Secret. Create the Secret yourself (recommended):
+#   kubectl -n kube-system create secret generic boostrun-cloud-controller-manager \
+#     --from-literal=api-key=<your API key>
+# or set apiKey.value to have the chart create it.
+apiKey:
+  existingSecret: boostrun-cloud-controller-manager
+  secretKey: api-key
+  # -- Create the Secret from this value instead. It is then stored in the Helm release too.
+  value: ""
+
+# -- Network cluster new load balancers are created in. Leave empty when your organization has
+# a single network cluster; otherwise set it here or per Service with the
+# loadbalancer.boostrun.com/network-cluster-id annotation.
+networkClusterID: ""
+
+# -- Name of this Kubernetes cluster, shown in each load balancer's description in the platform.
+# Set it when your organization runs more than one cluster.
+clusterName: kubernetes
+
+# -- Platform API base. Only change it if BoostRun support asks you to.
+apiURL: https://platform.boostrun.com/api/v1
+
+image:
+  repository: public.ecr.aws/boostrun/boostrun-cloud-controller-manager
+  # -- Defaults to the chart's appVersion.
+  tag: ""
+  # -- Pin an image digest (sha256:...); takes precedence over the tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# -- Two replicas with leader election: one serves, the other takes over within seconds.
+replicaCount: 2
+
+# -- Log verbosity (klog -v). 2 logs every change the controller makes on the platform.
+logLevel: 2
+
+# -- Extra command-line flags, for example ["--concurrent-service-syncs=2"].
+extraArgs: []
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+priorityClassName: system-cluster-critical
+
+nodeSelector: {}
+
+# -- Lets the controller run on control-plane nodes, which are often the only nodes at bootstrap.
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
+  - key: CriticalAddonsOnly
+    operator: Exists
+
+# -- Defaults to spreading the replicas across nodes when possible.
+affinity: {}
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+podAnnotations: {}
+podLabels: {}
+
+serviceAccount:
+  create: true
+  # -- Defaults to the release's full name.
+  name: ""
+  annotations: {}
